@@ -1,25 +1,93 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
 output: 
-  html_document:
-    keep_md: true
+html_document:
+keep_md: true
 ---
 
 
 ## Loading and preprocessing the data
+```{r echo=TRUE}
+library(data.table)
+library(ggplot2)
+```
+Load the data
+```{r echo=TRUE}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+path = file.path(getwd(), 'repdata%2Fdata%2Factivity.zip')
+download.file(fileUrl, destfile = path, method = "curl")
+unzip(path, exdir = "data")
 
-
+data = fread(file.path(getwd(), 'data/activity.csv'))
+```
 
 ## What is mean total number of steps taken per day?
-
+Make a histogram of the total number of steps taken each day
+```{r echo=TRUE}
+sum_total_steps = data[, .(sum(steps, na.rm=T)), by=.(date)]
+ggplot(sum_total_steps, aes(x = V1)) +
+    geom_histogram(bins = 30) +
+    labs(title = "Daily Steps", x = "Steps", y = "Frequency")
+```
+Calculate and report the mean and median total number of steps taken per day
+```{r echo=TRUE}
+mean(sum_total_steps$V1, na.rm = TRUE)
+median(sum_total_steps$V1, na.rm = TRUE)
+```
 
 
 ## What is the average daily activity pattern?
-
+Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r echo=TRUE}
+mean_total_int = data[, .(mean(steps, na.rm=T)), by=.(interval)]
+ggplot(mean_total_int, aes(x = interval , y = V1)) + 
+    geom_line() + 
+    labs(title = "Avg. Daily Steps", x = "Interval", y = "Avg. Steps per day")
+```
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r echo=TRUE}
+mean_total_int$interval[which(mean_total_int$V1==max(mean_total_int$V1))]
+```
 
 
 ## Imputing missing values
-
+Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r echo=TRUE}
+data[is.na(steps), .N]
+```
+Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+```{r echo=TRUE}
+data[is.na(steps), 'steps'] = round(mean(data$steps, na.rm=T))
+```
+Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r echo=TRUE}
+newData = data
+```
+Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+```{r echo=TRUE}
+sum_total_steps_impute = newData[, .(sum(steps, na.rm=T)), by=.(date)]
+ggplot(sum_total_steps_impute, aes(x = V1)) +
+    geom_histogram(bins = 30) +
+    labs(title = "Daily Steps", x = "Steps", y = "Frequency")
+mean(sum_total_steps_impute$V1, na.rm = TRUE)
+median(sum_total_steps_impute$V1, na.rm = TRUE)
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+```{r echo=TRUE}
+data[, week_day := ifelse(weekdays(as.Date(data$date)) %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), 
+                          'Weekday', 
+                          'Weekend')]
+```
+Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+```{r echo=TRUE}
+mean_steps_weekday_interval = data[, .(mean(steps, na.rm=T)), by=.(interval, week_day)]
+
+ggplot(mean_steps_weekday_interval, aes(interval, V1)) + 
+    geom_line() +
+    facet_grid(week_day ~ .) + 
+    xlab("5-minute interval") +
+    ylab("Number of steps")
+```
